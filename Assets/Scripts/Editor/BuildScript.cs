@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -26,7 +27,6 @@ namespace DaoVang.Editor
                 return activeScenes;
             }
 
-            // Fallback nếu chưa cấu hình scene trong Build Settings
             string defaultScene = "Assets/Scenes/SampleScene.unity";
             if (File.Exists(defaultScene))
             {
@@ -42,24 +42,63 @@ namespace DaoVang.Editor
             return new string[0];
         }
 
+        private static void SetupAndroidTools()
+        {
+            try
+            {
+                string editorDir = Path.GetDirectoryName(EditorApplication.applicationPath);
+                string playbackEngine = Path.Combine(editorDir, "Data", "PlaybackEngines", "AndroidPlayer");
+                string jdkPath = Path.Combine(playbackEngine, "OpenJDK");
+                string sdkPath = Path.Combine(playbackEngine, "SDK");
+                string ndkPath = Path.Combine(playbackEngine, "NDK");
+
+                if (Directory.Exists(jdkPath))
+                {
+                    EditorPrefs.SetString("JdkPath", jdkPath);
+                    Debug.Log($"[BuildScript] Cấu hình JdkPath: {jdkPath}");
+                }
+                if (Directory.Exists(sdkPath))
+                {
+                    EditorPrefs.SetString("AndroidSdkRoot", sdkPath);
+                    Debug.Log($"[BuildScript] Cấu hình AndroidSdkRoot: {sdkPath}");
+                }
+                if (Directory.Exists(ndkPath))
+                {
+                    EditorPrefs.SetString("AndroidNdkRootR27", ndkPath);
+                    EditorPrefs.SetString("AndroidNdkRootR26", ndkPath);
+                    EditorPrefs.SetString("AndroidNdkRoot", ndkPath);
+                    Debug.Log($"[BuildScript] Cấu hình AndroidNdkRoot: {ndkPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[BuildScript] Không thể cấu hình đường dẫn SDK qua EditorPrefs: {ex.Message}");
+            }
+        }
+
         [MenuItem("Build/1. Build Android APK", false, 10)]
         public static void PerformAndroidBuild()
         {
-            Debug.Log("[BuildScript] Bat dau quy trinh kiem tra va xuat file APK...");
+            Debug.Log("[BuildScript] Bắt đầu quy trình xuất file APK...");
+
+            SetupAndroidTools();
+
+            // Chuyển build target sang Android nếu chưa phải
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
+            {
+                Debug.Log("[BuildScript] Đang chuyển Active Build Target sang Android...");
+                EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+            }
 
             // Kiểm tra module Android Build Support
             if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
             {
-                string msg = "Module 'Android Build Support' chua duoc cai dat tren phien ban Unity 6 nay!\n\n" +
-                             "Cach cai dat de xuat APK:\n" +
-                             "1. Mo Unity Hub tren may cua ban.\n" +
-                             "2. Vao muc 'Installs' -> Tim ban Unity 6000.5.7f1.\n" +
-                             "3. Bam nut '...' (hoac banh rang) -> Chon 'Add modules'.\n" +
-                             "4. Tich chon 'Android Build Support' (kem Android SDK & NDK, OpenJDK) -> Bam Install.\n" +
-                             "5. Sau khi cai dat xong, bam lai menu nay de xuat file APK.";
-
+                string msg = "Module 'Android Build Support' chưa được sẵn sàng trên phiên bản Unity này!";
                 Debug.LogError("[BuildScript] " + msg);
-                EditorUtility.DisplayDialog("Android Build Support chua duoc cai", msg, "Da Hieu");
+                if (!Application.isBatchMode)
+                {
+                    EditorUtility.DisplayDialog("Android Build Support chưa sẵn sàng", msg, "Đã Hiểu");
+                }
                 return;
             }
 
@@ -83,7 +122,11 @@ namespace DaoVang.Editor
             string[] scenes = GetScenesToBuild();
             if (scenes.Length == 0)
             {
-                EditorUtility.DisplayDialog("Loi Build", "Khong tim thay scene nao de build!", "OK");
+                Debug.LogError("[BuildScript] Không tìm thấy scene nào để build!");
+                if (!Application.isBatchMode)
+                {
+                    EditorUtility.DisplayDialog("Lỗi Build", "Không tìm thấy scene nào để build!", "OK");
+                }
                 return;
             }
 
@@ -96,28 +139,34 @@ namespace DaoVang.Editor
                 options = BuildOptions.None
             };
 
-            Debug.Log($"[BuildScript] Dang xuat APK tai {AndroidApkPath} voi {scenes.Length} scene(s)...");
+            Debug.Log($"[BuildScript] Đang xuất APK tại {AndroidApkPath} với {scenes.Length} scene(s)...");
             BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
             BuildSummary summary = report.summary;
 
             if (summary.result == BuildResult.Succeeded)
             {
-                Debug.Log($"[BuildScript] XUAT APK THANH CONG! Dung luong: {summary.totalSize / (1024 * 1024):F2} MB tai: {Path.GetFullPath(AndroidApkPath)}");
-                EditorUtility.DisplayDialog("Xuat APK Thanh Cong",
-                    $"File APK da duoc tao thanh cong tai:\n{Path.GetFullPath(AndroidApkPath)}\n\nDung luong: {summary.totalSize / (1024 * 1024):F2} MB", "Mo Thu Muc");
-                EditorUtility.RevealInFinder(Path.GetFullPath(AndroidApkPath));
+                Debug.Log($"[BuildScript] XUẤT APK THÀNH CÔNG! Dung lượng: {summary.totalSize / (1024 * 1024):F2} MB tại: {Path.GetFullPath(AndroidApkPath)}");
+                if (!Application.isBatchMode)
+                {
+                    EditorUtility.DisplayDialog("Xuất APK Thành Công",
+                        $"File APK đã được tạo thành công tại:\n{Path.GetFullPath(AndroidApkPath)}\n\nDung lượng: {summary.totalSize / (1024 * 1024):F2} MB", "Mở Thư Mục");
+                    EditorUtility.RevealInFinder(Path.GetFullPath(AndroidApkPath));
+                }
             }
             else
             {
-                Debug.LogError($"[BuildScript] Xuat APK that bai voi loi: {summary.result}");
-                EditorUtility.DisplayDialog("Loi Xuat APK", $"Qua trinh xuat APK that bai. Vui long xem chi tiet trong Console Log.", "Dong");
+                Debug.LogError($"[BuildScript] Xuất APK thất bại với lỗi: {summary.result}");
+                if (!Application.isBatchMode)
+                {
+                    EditorUtility.DisplayDialog("Lỗi Xuất APK", $"Quá trình xuất APK thất bại. Vui lòng xem chi tiết trong Console Log.", "Đóng");
+                }
             }
         }
 
         [MenuItem("Build/2. Build Windows Standalone (.exe)", false, 20)]
         public static void PerformWindowsBuild()
         {
-            Debug.Log("[BuildScript] Bat dau xuat file Windows Standalone (.exe)...");
+            Debug.Log("[BuildScript] Bắt đầu xuất file Windows Standalone (.exe)...");
 
             PlayerSettings.productName = AppProductName;
             PlayerSettings.companyName = "DefaultCompany";
@@ -134,7 +183,11 @@ namespace DaoVang.Editor
             string[] scenes = GetScenesToBuild();
             if (scenes.Length == 0)
             {
-                EditorUtility.DisplayDialog("Loi Build", "Khong tim thay scene nao de build!", "OK");
+                Debug.LogError("[BuildScript] Không tìm thấy scene nào để build!");
+                if (!Application.isBatchMode)
+                {
+                    EditorUtility.DisplayDialog("Lỗi Build", "Không tìm thấy scene nào để build!", "OK");
+                }
                 return;
             }
 
@@ -152,14 +205,17 @@ namespace DaoVang.Editor
 
             if (summary.result == BuildResult.Succeeded)
             {
-                Debug.Log($"[BuildScript] XUAT FILE WINDOWS THANH CONG tai: {Path.GetFullPath(WindowsExePath)}");
-                EditorUtility.DisplayDialog("Xuat Game Thanh Cong",
-                    $"File chay Windows da duoc tao tai:\n{Path.GetFullPath(WindowsExePath)}", "Mo Thu Muc");
-                EditorUtility.RevealInFinder(Path.GetFullPath(WindowsExePath));
+                Debug.Log($"[BuildScript] XUẤT FILE WINDOWS THÀNH CÔNG tại: {Path.GetFullPath(WindowsExePath)}");
+                if (!Application.isBatchMode)
+                {
+                    EditorUtility.DisplayDialog("Xuất Game Thành Công",
+                        $"File chạy Windows đã được tạo tại:\n{Path.GetFullPath(WindowsExePath)}", "Mở Thư Mục");
+                    EditorUtility.RevealInFinder(Path.GetFullPath(WindowsExePath));
+                }
             }
             else
             {
-                Debug.LogError($"[BuildScript] Xuat Windows that bai: {summary.result}");
+                Debug.LogError($"[BuildScript] Xuất Windows thất bại: {summary.result}");
             }
         }
     }
