@@ -162,9 +162,91 @@ namespace DaoVang.Hook
             }
         }
 
+        private void OnEnable()
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.OnStateChanged += HandleGameStateChanged;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.OnStateChanged -= HandleGameStateChanged;
+            }
+        }
+
         private void Start()
         {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.OnStateChanged -= HandleGameStateChanged;
+                GameManager.Instance.OnStateChanged += HandleGameStateChanged;
+            }
             ApplyEquippedSkin();
+            ResetHook();
+        }
+
+        private void HandleGameStateChanged(GameState newState)
+        {
+            if (newState == GameState.Playing)
+            {
+                ResetHook();
+            }
+            else
+            {
+                _state = HookState.Swinging;
+                _caughtItem = null;
+                if (hookHead != null && hookOrigin != null)
+                {
+                    hookHead.position = hookOrigin.position;
+                    hookHead.rotation = Quaternion.identity;
+                }
+                if (hookOrigin != null) hookOrigin.rotation = Quaternion.identity;
+                DrawRope();
+            }
+        }
+
+        /// <summary>
+        /// Khởi tạo và reset lại móc câu về vị trí ban đầu (dùng khi bắt đầu ván mới hoặc đổi trạng thái)
+        /// </summary>
+        public void ResetHook()
+        {
+            _state = HookState.Swinging;
+            _swingTime = 0f;
+
+            if (_caughtItem != null)
+            {
+                _caughtItem.OnCollected();
+                _caughtItem = null;
+            }
+
+            if (hookHead != null)
+            {
+                for (int i = hookHead.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = hookHead.GetChild(i);
+                    child.SetParent(null);
+                    child.gameObject.SetActive(false);
+                }
+
+                if (hookOrigin != null)
+                {
+                    hookHead.position = hookOrigin.position;
+                    hookHead.rotation = hookOrigin.rotation;
+                }
+            }
+
+            if (hookOrigin != null)
+            {
+                hookOrigin.rotation = Quaternion.identity;
+            }
+
+            DrawRope();
+            if (playerCharacter != null) playerCharacter.PlayIdle();
+            else if (playerAnimator != null) playerAnimator.SetTrigger("Idle");
         }
 
         public void ApplyEquippedSkin()
@@ -197,8 +279,11 @@ namespace DaoVang.Hook
             // Chỉ hoạt động khi game đang trong trạng thái chơi (Playing)
             if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameState.Playing)
             {
-                hookHead.position = hookOrigin.position;
-                hookOrigin.rotation = Quaternion.identity;
+                if (hookHead != null && hookOrigin != null)
+                {
+                    hookHead.position = hookOrigin.position;
+                    hookOrigin.rotation = Quaternion.identity;
+                }
                 DrawRope();
                 return;
             }
@@ -280,30 +365,73 @@ namespace DaoVang.Hook
             // Hướng duỗi = hướng "up" cục bộ của hookOrigin (đã bị xoay theo góc đu lúc thả).
             Vector3 direction = hookOrigin.up * -1f; // up của pivot trỏ lên trên nên lấy chiều ngược lại để đi xuống
             float cableMod = DaoVang.Shop.ShopManager.Instance != null ? DaoVang.Shop.ShopManager.Instance.GetExtendSpeedMultiplier() : 1f;
-            hookHead.position += direction * (extendSpeed * cableMod) * Time.deltaTime;
-            hookHead.rotation = hookOrigin.rotation;
+            float moveDist = (extendSpeed * cableMod) * Time.deltaTime;
+            Vector3 prevPos = hookHead.position;
+            Vector3 targetPos = prevPos + direction * moveDist;
+
+            // Swept continuous collision detection - loại bỏ hoàn toàn lỗi tunneling xuyên thấu item ở mọi tốc độ
+            float castRadius = 0.28f;
+            RaycastHit2D[] hits = Physics2D.CircleCastAll(prevPos, castRadius, direction, moveDist, itemLayerMask);
+
+            if (hits.Length > 1)
+            {
+                System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            }
+
+            bool itemCaught = false;
+            for (int i = 0; i < hits.Length; i++)
+            {
+                var hit = hits[i];
+                if (hit.collider == null) continue;
+                ItemBase item = hit.collider.GetComponent<ItemBase>();
+                if (item == null || item.IsCaught || !item.gameObject.activeInHierarchy) continue;
+
+                if (item.Type == ItemType.Bomb && DaoVang.Shop.ShopManager.Instance != null && DaoVang.Shop.ShopManager.Instance.EquippedSkinAvoidsBombs())
+                {
+                    // Móc Hỏa Long (VIP Mythic): Né bom hoàn toàn, vô hiệu hoá bom mà không dừng cú phóng móc!
+                    EvadeBomb(item);
+                    continue;
+                }
+
+                // Gắp trúng vật phẩm hợp lệ đầu tiên trên đường phóng
+                hookHead.position = prevPos + direction * Mathf.Max(0f, hit.distance);
+                CatchItem(item);
+                itemCaught = true;
+                break;
+            }
+
+            if (!itemCaught)
+            {
+                hookHead.position = targetPos;
+                hookHead.rotation = hookOrigin.rotation;
+
+                // Kiểm tra va chạm bổ sung tại vị trí mới phòng trường hợp collider nằm ngay điểm xuất phát
+                Collider2D overlap = Physics2D.OverlapCircle(hookHead.position, castRadius, itemLayerMask);
+                if (overlap != null)
+                {
+                    ItemBase item = overlap.GetComponent<ItemBase>();
+                    if (item != null && !item.IsCaught && item.gameObject.activeInHierarchy)
+                    {
+                        if (item.Type == ItemType.Bomb && DaoVang.Shop.ShopManager.Instance != null && DaoVang.Shop.ShopManager.Instance.EquippedSkinAvoidsBombs())
+                        {
+                            EvadeBomb(item);
+                        }
+                        else
+                        {
+                            CatchItem(item);
+                            itemCaught = true;
+                        }
+                    }
+                }
+            }
+
             if (_winchObj != null) _winchObj.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 50f) * 2.5f);
 
             float distanceFromOrigin = Vector3.Distance(hookHead.position, hookOrigin.position);
-
-            // Giới hạn chiều dài dây câu (tối thiểu 20 để với tới đáy màn hình dọc lẫn ngang)
             float effectiveMaxLength = Mathf.Max(maxRopeLength, 20f);
-            if (distanceFromOrigin >= effectiveMaxLength)
+            if (!itemCaught && distanceFromOrigin >= effectiveMaxLength)
             {
                 _state = HookState.Retracting;
-                return;
-            }
-
-            // Điều kiện dừng 2: va chạm vật phẩm — kiểm tra bằng OverlapCircle thay vì
-            // chờ OnTriggerEnter2D để chủ động và dễ debug hơn.
-            Collider2D hit = Physics2D.OverlapCircle(hookHead.position, 0.15f, itemLayerMask);
-            if (hit != null)
-            {
-                ItemBase item = hit.GetComponent<ItemBase>();
-                if (item != null && !item.IsCaught)
-                {
-                    CatchItem(item);
-                }
             }
         }
 
@@ -311,6 +439,14 @@ namespace DaoVang.Hook
         {
             if (item.Type == ItemType.Bomb)
             {
+                // Móc cuối (Móc Hỏa Long VIP Mythic) né bom hoàn toàn
+                if (DaoVang.Shop.ShopManager.Instance != null && DaoVang.Shop.ShopManager.Instance.EquippedSkinAvoidsBombs())
+                {
+                    EvadeBomb(item);
+                    _state = HookState.Retracting;
+                    return;
+                }
+
                 // Kiểm tra Khiên Gỡ Bom từ Shop: nếu có thì vô hiệu hóa an toàn, không nổ
                 if (DaoVang.Shop.ShopManager.Instance != null && DaoVang.Shop.ShopManager.Instance.ConsumeBombShield())
                 {
@@ -333,6 +469,17 @@ namespace DaoVang.Hook
             else if (playerAnimator != null)
             {
                 playerAnimator.SetTrigger("Pull");
+            }
+            DaoVang.Audio.AudioManager.Instance?.PlayCatch();
+        }
+
+        private void EvadeBomb(ItemBase bomb)
+        {
+            if (bomb != null)
+            {
+                Vector3 pos = bomb.transform.position;
+                bomb.gameObject.SetActive(false);
+                DaoVang.UI.ScoreEffectManager.Instance?.ShowCustomPopup(pos, "★ NE BOM!", new Color(0.2f, 1f, 0.45f, 1f));
             }
             DaoVang.Audio.AudioManager.Instance?.PlayCatch();
         }
@@ -478,6 +625,13 @@ namespace DaoVang.Hook
             hookHead.rotation = hookOrigin.rotation;
             if (_winchObj != null) _winchObj.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 50f) * 3f);
 
+            // Kiểm tra an toàn: Nếu đang ở trạng thái kéo item nhưng item đã bị mất/hủy, chuyển về Retracting
+            if (_state == HookState.RetractingWithItem && (_caughtItem == null || !_caughtItem.gameObject.activeInHierarchy))
+            {
+                _state = HookState.Retracting;
+                _caughtItem = null;
+            }
+
             // Kiểm tra phím Space để kích nổ thuốc nổ phá đá/vật nặng đang kéo
             if (_state == HookState.RetractingWithItem && _caughtItem != null)
             {
@@ -488,20 +642,28 @@ namespace DaoVang.Hook
             }
 
             // Vật càng nặng (mass càng lớn) thì kéo càng chậm.
-            // Áp dụng hệ số nâng cấp sức kéo từ Cửa Hàng (PullPower)
+            // Áp dụng hệ số nâng cấp sức kéo từ Cửa Hàng (PullPower) & Skin Móc VIP
             float pullMod = DaoVang.Shop.ShopManager.Instance != null ? DaoVang.Shop.ShopManager.Instance.GetPullSpeedMultiplier() : 1f;
             float speed = baseRetractSpeed * pullMod;
             if (_state == HookState.RetractingWithItem && _caughtItem != null)
             {
-                speed = (baseRetractSpeed * pullMod) / Mathf.Max(0.1f, _caughtItem.Mass) * _caughtItem.RetractSpeedModifier;
-                _caughtItem.transform.position = hookHead.position;
+                float mass = Mathf.Max(0.1f, _caughtItem.Mass);
+                // Với Skin VIP có pullMod cao (>2.0), giảm bớt ảnh hưởng khối lượng để kéo cực nhanh và mượt mà
+                if (pullMod > 2.0f) mass = Mathf.Sqrt(mass);
+                speed = (baseRetractSpeed * pullMod) / mass * _caughtItem.RetractSpeedModifier;
             }
 
-            hookHead.position = Vector3.MoveTowards(hookHead.position, hookOrigin.position, speed * Time.deltaTime);
+            float step = speed * Time.deltaTime;
+            float dist = Vector3.Distance(hookHead.position, hookOrigin.position);
 
-            if (Vector3.Distance(hookHead.position, hookOrigin.position) < 0.05f)
+            if (dist <= step || dist < 0.08f)
             {
+                hookHead.position = hookOrigin.position;
                 CompleteRetract();
+            }
+            else
+            {
+                hookHead.position = Vector3.MoveTowards(hookHead.position, hookOrigin.position, step);
             }
         }
 
@@ -576,9 +738,26 @@ namespace DaoVang.Hook
                 }
             }
 
-            hookHead.position = hookOrigin.position;
+            // Dọn dẹp triệt để bất kỳ item hay con nào còn bám trên đầu móc
+            if (_caughtItem != null)
+            {
+                _caughtItem.OnCollected();
+                _caughtItem = null;
+            }
+
+            if (hookHead != null)
+            {
+                for (int i = hookHead.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = hookHead.GetChild(i);
+                    child.SetParent(null);
+                    child.gameObject.SetActive(false);
+                }
+                hookHead.position = hookOrigin.position;
+                hookHead.rotation = Quaternion.identity;
+            }
+
             hookOrigin.rotation = Quaternion.identity;
-            hookHead.rotation = Quaternion.identity;
             _swingTime = 0f;
             _state = HookState.Swinging;
         }

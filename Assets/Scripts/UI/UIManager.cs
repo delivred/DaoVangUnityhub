@@ -1428,6 +1428,38 @@ namespace DaoVang.UI
                 _dynamiteHudButton.onClick.RemoveAllListeners();
                 _dynamiteHudButton.onClick.AddListener(OnClickUseDynamite);
             }
+
+            // 2 Nút HUD Tiện ích khi chơi: "THOÁT" và "QUA MÀN"
+            Button hudTemplate = _dynamiteHudButton ?? _playButton;
+            Button hudExitBtn = SetupOrCloneButton(playingPanel, "HudExitButton", hudTemplate,
+                new Vector2(80f, -72f), new Vector2(110f, 36f),
+                new Color(0.65f, 0.22f, 0.22f, 0.95f), "◀  THOAT", 15f, OnClickBackToMenuFromPlaying);
+            if (hudExitBtn != null)
+            {
+                RectTransform rt = hudExitBtn.GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    rt.anchorMin = new Vector2(0f, 1f);
+                    rt.anchorMax = new Vector2(0f, 1f);
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    rt.anchoredPosition = new Vector2(80f, -72f);
+                }
+            }
+
+            Button hudSkipBtn = SetupOrCloneButton(playingPanel, "HudSkipButton", hudTemplate,
+                new Vector2(205f, -72f), new Vector2(115f, 36f),
+                new Color(0.18f, 0.65f, 0.3f, 0.95f), "▶  QUA MAN", 15f, OnClickNextLevel);
+            if (hudSkipBtn != null)
+            {
+                RectTransform rt = hudSkipBtn.GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    rt.anchorMin = new Vector2(0f, 1f);
+                    rt.anchorMax = new Vector2(0f, 1f);
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    rt.anchoredPosition = new Vector2(205f, -72f);
+                }
+            }
         }
 
         // =========================================================================
@@ -1482,17 +1514,18 @@ namespace DaoVang.UI
 
                 Transform rBtn = gameOverPanel.transform.Find("RestartButton") ?? gameOverPanel.transform.Find("RetryButton");
                 if (rBtn != null) _gameOverRetryButton = rBtn.GetComponent<Button>();
-                if (_gameOverRetryButton != null)
-                {
-                    _gameOverRetryButton.onClick.RemoveAllListeners();
-                    _gameOverRetryButton.onClick.AddListener(OnClickRestart);
-                }
 
-                _gameOverShopButton = SetupOrCloneButton(gameOverPanel, "ShopButton", _gameOverRetryButton, new Vector2(150f, -65f), new Vector2(220f, 50f),
-                    new Color(0.88f, 0.55f, 0.1f, 1f), "🛒  CUA HANG", 20f, OnClickOpenShop);
+                _gameOverRetryButton = SetupOrCloneButton(gameOverPanel, "RestartButton", _gameOverRetryButton ?? _playButton,
+                    new Vector2(-155f, -65f), new Vector2(230f, 52f),
+                    new Color(0.18f, 0.72f, 0.32f, 1f), "🔄  CHOI LAI", 19f, OnClickRestart);
 
-                _gameOverMenuButton = SetupOrCloneButton(gameOverPanel, "MenuButton", _gameOverRetryButton, new Vector2(0f, -135f), new Vector2(220f, 44f),
-                    new Color(0.28f, 0.33f, 0.42f, 1f), "◀  VE MENU", 18f, OnClickBackToMenuFromGameOver);
+                _gameOverShopButton = SetupOrCloneButton(gameOverPanel, "ShopButton", _gameOverRetryButton ?? _playButton,
+                    new Vector2(155f, -65f), new Vector2(230f, 52f),
+                    new Color(0.88f, 0.55f, 0.1f, 1f), "🛒  CUA HANG", 19f, OnClickOpenShop);
+
+                _gameOverMenuButton = SetupOrCloneButton(gameOverPanel, "MenuButton", _gameOverRetryButton ?? _playButton,
+                    new Vector2(0f, -140f), new Vector2(260f, 44f),
+                    new Color(0.28f, 0.33f, 0.42f, 1f), "◀  THOAT / VE MENU", 17f, OnClickBackToMenuFromGameOver);
             }
 
             // Level Complete Panel
@@ -1544,21 +1577,25 @@ namespace DaoVang.UI
                 if (nBtn != null)
                 {
                     _nextLevelButton = nBtn.gameObject;
-                    Button btn = nBtn.GetComponent<Button>();
-                    if (btn != null)
-                    {
-                        btn.onClick.RemoveAllListeners();
-                        btn.onClick.AddListener(OnClickNextLevel);
-                    }
                 }
 
-                Button templateBtn = (_nextLevelButton != null ? _nextLevelButton.GetComponent<Button>() : null) ?? _gameOverRetryButton;
+                Button templateBtn = (_nextLevelButton != null ? _nextLevelButton.GetComponent<Button>() : null) ?? _gameOverRetryButton ?? _playButton;
 
-                _completeShopButton = SetupOrCloneButton(levelCompletePanel, "ShopButton", templateBtn, new Vector2(150f, -65f), new Vector2(220f, 50f),
-                    new Color(0.88f, 0.55f, 0.1f, 1f), "🛒  CUA HANG", 20f, OnClickOpenShop);
+                Button nextBtnComp = SetupOrCloneButton(levelCompletePanel, "NextLevelButton", templateBtn,
+                    new Vector2(-155f, -65f), new Vector2(230f, 52f),
+                    new Color(0.18f, 0.72f, 0.32f, 1f), "▶  QUA MAN TIEP", 19f, OnClickNextLevel);
+                if (nextBtnComp != null)
+                {
+                    _nextLevelButton = nextBtnComp.gameObject;
+                }
 
-                _completeMenuButton = SetupOrCloneButton(levelCompletePanel, "MenuButton", templateBtn, new Vector2(0f, -135f), new Vector2(220f, 44f),
-                    new Color(0.28f, 0.33f, 0.42f, 1f), "◀  VE MENU", 18f, OnClickBackToMenuFromComplete);
+                _completeShopButton = SetupOrCloneButton(levelCompletePanel, "ShopButton", templateBtn,
+                    new Vector2(155f, -65f), new Vector2(230f, 52f),
+                    new Color(0.88f, 0.55f, 0.1f, 1f), "🛒  CUA HANG", 19f, OnClickOpenShop);
+
+                _completeMenuButton = SetupOrCloneButton(levelCompletePanel, "MenuButton", templateBtn,
+                    new Vector2(0f, -140f), new Vector2(260f, 44f),
+                    new Color(0.28f, 0.33f, 0.42f, 1f), "◀  THOAT / VE MENU", 17f, OnClickBackToMenuFromComplete);
             }
         }
 
@@ -2068,11 +2105,15 @@ namespace DaoVang.UI
                 string buffInfo = "";
                 if (skin != null && skin.id != SaveSystem.DefaultSkinId)
                 {
-                    buffInfo += $"👑 {skin.name} (X2.0 DIEM)  ";
+                    buffInfo += $"👑 {skin.name} (X2)  ";
+                    if (skin.avoidsBombs)
+                    {
+                        buffInfo += "★ NE BOM  ";
+                    }
                 }
                 if (levelManager != null && levelManager.HasEnergyDrinkActive)
                 {
-                    buffInfo += "⚡ +15s (NUOC TANG LUC)  ";
+                    buffInfo += "⚡ +15s  ";
                 }
                 int shields = ShopManager.Instance != null ? ShopManager.Instance.GetBombShieldCount() : 0;
                 if (shields > 0)
@@ -2129,6 +2170,11 @@ namespace DaoVang.UI
             if (_nextLevelButton != null)
             {
                 _nextLevelButton.SetActive(hasNext);
+                TMP_Text nextTxt = _nextLevelButton.GetComponentInChildren<TMP_Text>();
+                if (nextTxt != null)
+                {
+                    nextTxt.text = $"▶  QUA MAN {currentLvl + 2}";
+                }
             }
         }
 
@@ -2548,6 +2594,12 @@ namespace DaoVang.UI
         }
 
         public void OnClickBackToMenuFromComplete()
+        {
+            DaoVang.Audio.AudioManager.Instance?.PlayShoot();
+            GameManager.Instance?.ReturnToMenu();
+        }
+
+        public void OnClickBackToMenuFromPlaying()
         {
             DaoVang.Audio.AudioManager.Instance?.PlayShoot();
             GameManager.Instance?.ReturnToMenu();

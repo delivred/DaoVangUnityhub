@@ -37,6 +37,7 @@ namespace DaoVang.Shop
                 scoreMultiplier = 1.0f,
                 extendSpeedBonus = 0f,
                 pullSpeedBonus = 0f,
+                avoidsBombs = false,
                 headColor = Color.white,
                 ropeColor = new Color(1f, 0.85f, 0.2f, 1f),
                 perkDescription = "Moc tieu chuan. Diem so va toc do theo cap nang cap co ban."
@@ -49,10 +50,11 @@ namespace DaoVang.Shop
                 cost = 20000,
                 scoreMultiplier = 2.0f,
                 extendSpeedBonus = 0.50f,
-                pullSpeedBonus = 0.50f,
+                pullSpeedBonus = 0.80f,
+                avoidsBombs = false,
                 headColor = new Color(1f, 0.84f, 0.1f, 1f),
                 ropeColor = new Color(1f, 0.92f, 0.35f, 1f),
-                perkDescription = "★ X2.0 DIEM SO & TOKEN tu moi vat pham\n★ +50% Toc do phong moc & +50% Toc do thu ve"
+                perkDescription = "★ X2.0 DIEM SO & TOKEN tu moi vat pham\n★ +50% Toc do phong & +80% Toc do keo ve"
             },
             new HookSkinData
             {
@@ -62,10 +64,11 @@ namespace DaoVang.Shop
                 cost = 35000,
                 scoreMultiplier = 2.0f,
                 extendSpeedBonus = 0.75f,
-                pullSpeedBonus = 0.75f,
+                pullSpeedBonus = 1.50f,
+                avoidsBombs = false,
                 headColor = new Color(0.1f, 0.95f, 1f, 1f),
                 ropeColor = new Color(0.2f, 0.85f, 1f, 1f),
-                perkDescription = "★ X2.0 DIEM SO & TOKEN tu moi vat pham\n★ +75% Toc do phong chanh chop & +75% Toc do keo sieu toc"
+                perkDescription = "★ X2.0 DIEM SO & TOKEN tu moi vat pham\n★ +75% Toc do phong & +150% Toc do keo sieu toc"
             },
             new HookSkinData
             {
@@ -75,10 +78,11 @@ namespace DaoVang.Shop
                 cost = 50000,
                 scoreMultiplier = 2.0f,
                 extendSpeedBonus = 1.00f,
-                pullSpeedBonus = 1.00f,
+                pullSpeedBonus = 2.50f,
+                avoidsBombs = true,
                 headColor = new Color(1f, 0.22f, 0.25f, 1f),
                 ropeColor = new Color(1f, 0.45f, 0.1f, 1f),
-                perkDescription = "★ X2.0 DIEM SO TOI THUONG\n★ +100% (GAP DOI) Toc do phong & +100% Suc keo cuong phong"
+                perkDescription = "★ NE HOAN TOAN BOM NO (KHONG BI NO TUNG)\n★ X2.0 DIEM SO & +250% SUC KEO CUONG PHONG"
             }
         };
 
@@ -312,6 +316,13 @@ namespace DaoVang.Shop
             }
             return false;
         }
+
+        /// <summary>Kiểm tra xem Skin Móc hiện tại có né bom (miễn nhiễm bom) hay không</summary>
+        public bool EquippedSkinAvoidsBombs()
+        {
+            HookSkinData skin = GetEquippedSkinData();
+            return skin != null && skin.avoidsBombs;
+        }
     }
 
     /// <summary>
@@ -327,6 +338,7 @@ namespace DaoVang.Shop
         public float scoreMultiplier = 1.0f; // x1.0, x2.0
         public float extendSpeedBonus = 0f;  // +0%, +50%, +75%, +100%
         public float pullSpeedBonus = 0f;    // +0%, +50%, +75%, +100%
+        public bool avoidsBombs = false;     // True nếu né/miễn nhiễm bom (Móc Hỏa Long)
         public Color headColor = Color.white;
         public Color ropeColor = Color.yellow;
         public string perkDescription;

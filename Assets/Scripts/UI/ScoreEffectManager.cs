@@ -34,6 +34,55 @@ namespace DaoVang.UI
             StartCoroutine(SpawnSparklesRoutine(worldPos));
         }
 
+        /// <summary>
+        /// Hiển thị văn bản thông báo đặc biệt bay lên (ví dụ: NE BOM!) và chùm tia sáng lấp lánh
+        /// </summary>
+        public void ShowCustomPopup(Vector3 worldPos, string text, Color textColor)
+        {
+            StartCoroutine(FloatingCustomRoutine(worldPos, text, textColor));
+            StartCoroutine(SpawnSparklesRoutine(worldPos));
+        }
+
+        private IEnumerator FloatingCustomRoutine(Vector3 startPos, string text, Color textColor)
+        {
+            GameObject textObj = new GameObject("CustomPopup");
+            textObj.transform.position = startPos + new Vector3(0f, 0.4f, 0f);
+
+            TextMeshPro tmp = textObj.AddComponent<TextMeshPro>();
+            tmp.text = text;
+            tmp.fontSize = 6.5f;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = textColor;
+            tmp.sortingOrder = 30;
+
+            float duration = 0.85f;
+            float elapsed = 0f;
+            Vector3 origin = textObj.transform.position;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+
+                if (textObj != null)
+                {
+                    textObj.transform.position = origin + new Vector3(0f, Mathf.Sin(t * Mathf.PI * 0.5f) * 1.3f, 0f);
+                    float scale = (t < 0.2f) ? Mathf.Lerp(0.6f, 1.25f, t / 0.2f) : Mathf.Lerp(1.25f, 1.0f, (t - 0.2f) / 0.8f);
+                    textObj.transform.localScale = Vector3.one * scale;
+
+                    if (t > 0.5f)
+                    {
+                        Color c = tmp.color;
+                        c.a = 1f - ((t - 0.5f) / 0.5f);
+                        tmp.color = c;
+                    }
+                }
+                yield return null;
+            }
+
+            if (textObj != null) Destroy(textObj);
+        }
+
         private IEnumerator FloatingScoreRoutine(Vector3 startPos, int score, Color textColor)
         {
             GameObject textObj = new GameObject("ScorePopup");

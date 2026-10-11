@@ -51,6 +51,14 @@ namespace DaoVang.Level
             _isRunning = true;
 
             itemSpawner.SpawnForLevel(level);
+
+#if UNITY_2023_1_OR_NEWER
+            var hook = FindAnyObjectByType<DaoVang.Hook.HookController>();
+#else
+            var hook = FindObjectOfType<DaoVang.Hook.HookController>();
+#endif
+            if (hook != null) hook.ResetHook();
+
             OnTimeChanged?.Invoke(TimeLeft);
         }
 

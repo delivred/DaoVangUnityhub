@@ -35,6 +35,9 @@ namespace DaoVang.Items
         public void OnCaught(Transform hookHead)
         {
             IsCaught = true;
+            Collider2D col = GetComponent<Collider2D>();
+            if (col != null) col.enabled = false;
+
             // Parent vào đầu móc để vật phẩm "di chuyển theo móc" tự động theo Transform cha.
             transform.SetParent(hookHead);
             transform.localPosition = Vector3.zero;
@@ -52,6 +55,8 @@ namespace DaoVang.Items
         public void ResetForReuse()
         {
             IsCaught = false;
+            Collider2D col = GetComponent<Collider2D>();
+            if (col != null) col.enabled = true;
             transform.SetParent(null);
         }
     }
